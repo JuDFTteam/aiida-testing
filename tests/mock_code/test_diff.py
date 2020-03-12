@@ -49,7 +49,6 @@ def generate_diff_inputs(datadir):
 
     return _generate_diff_inputs
 
-
 def check_diff_output(result):
     """
     Checks the result from a diff calculation against a reference.
