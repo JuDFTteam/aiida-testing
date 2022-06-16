@@ -174,11 +174,10 @@ def load_cache(hash_code_by_entrypoint):
                     import_archive(file_full_import_path)
             else:  # Should never get there
                 raise OSError(
-                    "Path: {} to be imported exists, but is neither a file or directory.".
-                    format(full_import_path)
+                    f"Path: {full_import_path} to be imported exists, but is neither a file or directory."
                 )
         else:
-            raise OSError("File: {} to be imported does not exist.".format(full_import_path))
+            raise FileNotFoundError(f"File: {full_import_path} to be imported does not exist.")
 
         # need to rehash after import, otherwise cashing does not work
         # for this we rehash all process nodes
