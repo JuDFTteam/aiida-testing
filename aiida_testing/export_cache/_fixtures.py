@@ -32,8 +32,8 @@ except ImportError:
     import_archive = partial(import_archive, extras_mode_existing='ncu', extras_mode_new='import')
 
 __all__ = (
-    "pytest_addoption", "run_with_cache", "load_cache", "export_cache", "with_export_cache",
-    "hash_code_by_entrypoint"
+    "pytest_addoption", "absolute_archive_path", "run_with_cache", "load_cache", "export_cache",
+    "with_export_cache", "hash_code_by_entrypoint"
 )
 
 
