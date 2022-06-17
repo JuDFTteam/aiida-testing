@@ -8,16 +8,28 @@ Meant to be useful for WorkChain tests.
 import os
 import hashlib
 import pathlib
+from functools import partial
+from contextlib import contextmanager
 import typing as ty
 import pytest
+
 from aiida.engine import run_get_node
 from aiida.engine import ProcessBuilderNamespace
 from aiida.common.hashing import make_hash
+from aiida.common.links import LinkType
 from aiida.orm import Node, Code, Dict, SinglefileData, List, FolderData, RemoteData
 from aiida.orm import CalcJobNode, ProcessNode  #, load_node
 from aiida.orm.querybuilder import QueryBuilder
 from aiida.manage.caching import enable_caching
-from contextlib import contextmanager
+
+try:
+    from aiida.tools.archive import create_archive
+    from aiida.tools.archive import import_archive
+    import_archive = partial(import_archive, merge_extras=('n', 'c', 'u'), import_new_extras=True)
+except ImportError:
+    from aiida.tools.importexport import export as create_archive
+    from aiida.tools.importexport import import_data as import_archive
+    import_archive = partial(import_archive, extras_mode_existing='ncu', extras_mode_new='import')
 
 __all__ = (
     "pytest_addoption", "run_with_cache", "load_cache", "export_cache", "with_export_cache",
@@ -96,7 +108,7 @@ def absolute_archive_path(request):
     def _absolute_archive_path(filepath):
         """
         Returns the absolute filepath to the given archive.
-        The procedure is 
+        The procedure is:
 
         - If the path is already absolute, return it
         - If the option -aiida-cache-dir is given construct it relative to this
@@ -112,6 +124,11 @@ def absolute_archive_path(request):
                 #Adapted from shared_datadir of pytest-datadir to not use paths
                 #in the tmp copies created by pytest
                 default_data_dir = pathlib.Path(request.fspath.dirname) / 'data_dir'
+            else:
+                default_data_dir = pathlib.Path(default_data_dir)
+            if not default_data_dir.exists():
+                default_data_dir.mkdir()
+
             full_export_path = pathlib.Path(default_data_dir) / filepath
             #print(full_export_path)
         return full_export_path.absolute()
@@ -132,10 +149,6 @@ def export_cache(hash_code_by_entrypoint, absolute_archive_path):
         :param savepath: str or path where the export file is to be saved
         :param overwrite: bool, default=True, if existing export is overwritten
         """
-        try:
-            from aiida.tools.archive import create_archive
-        except ImportError:
-            from aiida.tools.importexport import export as create_archive
 
         # we rehash before the export, what goes in the hash is monkeypatched
         qub = QueryBuilder()
@@ -159,7 +172,7 @@ def export_cache(hash_code_by_entrypoint, absolute_archive_path):
 
 # Do we always want to use hash_code_by_entrypoint here?
 @pytest.fixture(scope='function')
-def load_cache(hash_code_by_entrypoint):
+def load_cache(hash_code_by_entrypoint, absolute_archive_path):
     """Fixture to load a cached AiiDA graph"""
 
     def _load_cache(path_to_cache=None, node=None, load_all=False):
@@ -173,18 +186,6 @@ def load_cache(hash_code_by_entrypoint):
             if no path_to_cache is given tries to guess it.
         :raises : OSError, if import file non existent
         """
-        from functools import partial
-        try:
-            from aiida.tools.archive import import_archive
-            import_archive = partial(
-                import_archive, merge_extras=('n', 'c', 'u'), import_new_extras=True
-            )
-        except ImportError:
-            from aiida.tools.importexport import import_data as import_archive
-            import_archive = partial(
-                import_archive, extras_mode_existing='ncu', extras_mode_new='import'
-            )
-
         if path_to_cache is None:
             if node is None:
                 raise ValueError(
@@ -282,7 +283,6 @@ def hash_code_by_entrypoint(monkeypatch):
     Monkeypatch .get_objects_to_hash of Code and CalcJobNodes of aiida-core
     to not include the uuid of the computer and less information of the code node in the hash
     """
-    from aiida.common.links import LinkType
 
     def mock_objects_to_hash_code(self):
         """
@@ -408,7 +408,6 @@ def run_with_cache(export_cache, load_cache, absolute_archive_path):
 
         # This is executed after the test
         if not cache_exists or overwrite:
-            # TODO create datadir if not existent
 
             # in case of yield:
             # is the db already cleaned?
