@@ -20,8 +20,20 @@ from aiida.manage.caching import enable_caching
 from contextlib import contextmanager
 
 __all__ = (
-    "run_with_cache", "load_cache", "export_cache", "with_export_cache", "hash_code_by_entrypoint"
+    "pytest_addoption", "run_with_cache", "load_cache", "export_cache", "with_export_cache",
+    "hash_code_by_entrypoint"
 )
+
+
+def pytest_addoption(parser):
+    """Add pytest command line options."""
+    parser.addoption(
+        "--aiida-cache-dir",
+        action="store",
+        default='',
+        help="Default location for exported caches"
+    )
+
 
 #### utils
 
@@ -76,10 +88,42 @@ def get_hash_process(  # type: ignore # pylint: disable=dangerous-default-value
 
 
 @pytest.fixture(scope='function')
-def export_cache(hash_code_by_entrypoint):
+def absolute_archive_path(request):
+    """
+    Fixture to get the absolute filepath for a given archive
+    """
+
+    def _absolute_archive_path(filepath):
+        """
+        Returns the absolute filepath to the given archive.
+        The procedure is 
+
+        - If the path is already absolute, return it
+        - If the option -aiida-cache-dir is given construct it relative to this
+        - Otherwise interpret the directory as relative to the test file inside a folder `data_dir`
+        """
+        default_data_dir = request.config.getoption("--aiida-cache-dir")
+        filepath = pathlib.Path(filepath)
+
+        if filepath.is_absolute():
+            full_export_path = filepath
+        else:
+            if not default_data_dir:
+                #Adapted from shared_datadir of pytest-datadir to not use paths
+                #in the tmp copies created by pytest
+                default_data_dir = pathlib.Path(request.fspath.dirname) / 'data_dir'
+            full_export_path = pathlib.Path(default_data_dir) / filepath
+            #print(full_export_path)
+        return full_export_path.absolute()
+
+    return _absolute_archive_path
+
+
+@pytest.fixture(scope='function')
+def export_cache(hash_code_by_entrypoint, absolute_archive_path):
     """Fixture to export an AiiDA graph from given node(s)"""
 
-    def _export_cache(node, savepath, default_data_dir=None, overwrite=True):
+    def _export_cache(node, savepath, overwrite=True):
         """
         Function to export an AiiDA graph from a given node.
         Currenlty, uses the export functionalities of aiida-core
@@ -100,13 +144,7 @@ def export_cache(hash_code_by_entrypoint):
         for node1 in to_hash:
             node1[0].rehash()
 
-        if os.path.isabs(savepath):
-            full_export_path = savepath
-        else:
-            if default_data_dir is None:
-                default_data_dir = os.path.join(os.getcwd(), 'data_dir')  # May not be best idea
-            full_export_path = os.path.join(default_data_dir, savepath)
-            #print(full_export_path)
+        full_export_path = absolute_archive_path(savepath)
 
         if isinstance(node, list):
             to_export = node
@@ -160,7 +198,7 @@ def load_cache(hash_code_by_entrypoint):
             #    # construct path from that
         else:
             # relative paths given will be completed with cwd
-            full_import_path = pathlib.Path(path_to_cache)
+            full_import_path = absolute_archive_path(path_to_cache)
 
         if full_import_path.exists():
             if os.path.isfile(full_import_path):
@@ -193,7 +231,7 @@ def load_cache(hash_code_by_entrypoint):
 
 
 @pytest.fixture(scope='function')
-def with_export_cache(export_cache, load_cache):
+def with_export_cache(export_cache, load_cache, absolute_archive_path):
     """
     Fixture to use in a with() environment within a test to enable caching in the with-statement.
     Requires to provide an absolutpath to the export file to load or export to.
@@ -201,15 +239,16 @@ def with_export_cache(export_cache, load_cache):
     """
 
     @contextmanager
-    def _with_export_cache(data_dir_abspath, calculation_class=None, overwrite=False):
+    def _with_export_cache(savepath, calculation_class=None, overwrite=False):
         """
         Contextmanager to run calculation within, which aiida graph gets exported
         """
 
+        full_export_path = absolute_archive_path(savepath)
         # check and load export
-        export_exists = os.path.isfile(data_dir_abspath)
+        export_exists = os.path.isfile(full_export_path)
         if export_exists:
-            load_cache(path_to_cache=data_dir_abspath)
+            load_cache(path_to_cache=full_export_path)
 
         # default enable globally for all jobcalcs
         if calculation_class is None:
@@ -232,7 +271,7 @@ def with_export_cache(export_cache, load_cache):
             qub = QueryBuilder()
             qub.append(queryclass, tag='node')  # query for CalcJobs nodes
             to_export = [entry[0] for entry in qub.all()]
-            export_cache(node=to_export, savepath=data_dir_abspath, overwrite=overwrite)
+            export_cache(node=to_export, savepath=full_export_path, overwrite=overwrite)
 
     return _with_export_cache
 
@@ -314,7 +353,7 @@ def hash_code_by_entrypoint(monkeypatch):
 
 
 @pytest.fixture(scope='function')
-def run_with_cache(export_cache, load_cache):
+def run_with_cache(export_cache, load_cache, absolute_archive_path):
     """
     Fixture to automatically import an aiida graph for a given process builder.
     """
@@ -323,7 +362,6 @@ def run_with_cache(export_cache, load_cache):
                           ],  #aiida process builder class, or dict, if process class is given
         process_class=None,
         label: str = '',
-        data_dir: ty.Union[str, pathlib.Path] = 'data_dir',
         overwrite: bool = False,
     ):
         """
@@ -335,16 +373,13 @@ def run_with_cache(export_cache, load_cache):
         Inputs:
 
         builder : AiiDA Process builder class,
-        data_dir: optional
-            Absolute path of the directory where the exported workchain graphs are
-            stored.
         overwrite: enforce exporting of a new cache
         #ignore_nodes : list string, ignore input nodes with these labels/link labels to ignore in hash.
         # needed?
         """
 
         cache_exists = False
-        bui_hash, input_nodes = get_hash_process(builder)  # pylint: disable=unused-variable
+        bui_hash, _ = get_hash_process(builder)  # pylint: disable=unused-variable
 
         if process_class is None:  # and isinstance(builder, dict):
             process_class = builder.process_class  # type: ignore
@@ -353,13 +388,9 @@ def run_with_cache(export_cache, load_cache):
         #    raise TypeError(
         #        'builder has to be of type ProcessBuilder if no process_class is specified'
         #    )
-        name = label + str(process_class).split('.')[-1].strip("'>") + '-nodes-' + bui_hash
-        print(name)
+        name = f"{label}{process_class.__name__}-nodes-{bui_hash}"
+        full_import_path = absolute_archive_path(f"{name}.tar.gz")
 
-        # check existence
-        full_import_path = pathlib.Path(data_dir) / (name + '.tar.gz')
-        # make sure the path is absolute (this is needed by export_cache)
-        full_import_path = full_import_path.absolute()
         print(full_import_path)
         if full_import_path.exists():
             cache_exists = True
