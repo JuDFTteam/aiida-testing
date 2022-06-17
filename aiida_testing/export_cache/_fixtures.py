@@ -131,7 +131,7 @@ def absolute_archive_path(request):
 
             full_export_path = pathlib.Path(default_data_dir) / filepath
             #print(full_export_path)
-        return full_export_path.absolute()
+        return os.fspath(full_export_path.absolute())
 
     return _absolute_archive_path
 
@@ -201,7 +201,7 @@ def load_cache(hash_code_by_entrypoint, absolute_archive_path):
             # relative paths given will be completed with cwd
             full_import_path = absolute_archive_path(path_to_cache)
 
-        if full_import_path.exists():
+        if os.path.exists(full_import_path):
             if os.path.isfile(full_import_path):
                 # import cache, also import extras
                 import_archive(full_import_path)
@@ -240,12 +240,12 @@ def with_export_cache(export_cache, load_cache, absolute_archive_path):
     """
 
     @contextmanager
-    def _with_export_cache(savepath, calculation_class=None, overwrite=False):
+    def _with_export_cache(data_dir_abspath, calculation_class=None, overwrite=False):
         """
         Contextmanager to run calculation within, which aiida graph gets exported
         """
 
-        full_export_path = absolute_archive_path(savepath)
+        full_export_path = absolute_archive_path(data_dir_abspath)
         # check and load export
         export_exists = os.path.isfile(full_export_path)
         if export_exists:
@@ -363,6 +363,7 @@ def run_with_cache(export_cache, load_cache, absolute_archive_path):
         process_class=None,
         label: str = '',
         overwrite: bool = False,
+        data_dir: ty.Union[str, pathlib.Path, None] = None
     ):
         """
         Function, which checks if a aiida export for a given Process builder exists,
@@ -389,10 +390,13 @@ def run_with_cache(export_cache, load_cache, absolute_archive_path):
         #        'builder has to be of type ProcessBuilder if no process_class is specified'
         #    )
         name = f"{label}{process_class.__name__}-nodes-{bui_hash}"
-        full_import_path = absolute_archive_path(f"{name}.tar.gz")
+        path = name
+        if data_dir is not None:
+            path = os.fspath(pathlib.Path(data_dir) / name)
+        full_import_path = absolute_archive_path(f"{path}.tar.gz")
 
         print(full_import_path)
-        if full_import_path.exists():
+        if os.path.exists(full_import_path):
             cache_exists = True
 
         if cache_exists:
