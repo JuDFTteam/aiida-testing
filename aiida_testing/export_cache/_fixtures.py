@@ -289,6 +289,10 @@ def hash_code_by_entrypoint(monkeypatch):
         """
         Return a list of objects which should be included in the hash of a Code node
         """
+        try:
+            self.get_attribute
+        except AttributeError:
+            self = self._node
         # computer names are changed by aiida-core if imported and do not have same uuid.
         return [self.get_attribute(key='input_plugin')]  #, self.get_computer_name()]
 
@@ -297,6 +301,10 @@ def hash_code_by_entrypoint(monkeypatch):
         Return a list of objects which should be included in the hash of a CalcJobNode.
         code from aiida-core, only self.computer.uuid is commented out
         """
+        try:
+            self._hash_ignored_attributes
+        except AttributeError:
+            self = self._node
         #from pprint import pprint
         #from importlib import import_module
         ignored = list(self._hash_ignored_attributes)
@@ -336,6 +344,11 @@ def hash_code_by_entrypoint(monkeypatch):
         """
         Return a list of objects which should be included in the hash of all Nodes.
         """
+        try:
+            self._hash_ignored_attributes
+        except AttributeError:
+            self = self._node
+
         ignored = list(self._hash_ignored_attributes)  # pylint: disable=protected-access
         ignored.append('version')
         self._hash_ignored_attributes = tuple(ignored)  # pylint: disable=protected-access
