@@ -303,8 +303,11 @@ def hash_code_by_entrypoint(monkeypatch):
         """
         try:
             self._hash_ignored_attributes
+            hash_ignored_inputs = self._hash_ignored_inputs
         except AttributeError:
+            hash_ignored_inputs = self._hash_ignored_inputs
             self = self._node
+
         #from pprint import pprint
         #from importlib import import_module
         ignored = list(self._hash_ignored_attributes)
@@ -323,7 +326,7 @@ def hash_code_by_entrypoint(monkeypatch):
                 entry.link_label: entry.node.get_hash()
                 for entry in
                 self.get_incoming(link_type=(LinkType.INPUT_CALC, LinkType.INPUT_WORK))
-                if entry.link_label not in self._hash_ignored_inputs
+                if entry.link_label not in hash_ignored_inputs
             }
         ]
         #pprint('{} objects to hash calcjob: {}'.format(type(self), objects))
