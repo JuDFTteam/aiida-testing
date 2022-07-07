@@ -248,7 +248,6 @@ def with_export_cache(export_cache, load_cache, absolute_archive_path):
         full_export_path = absolute_archive_path(data_dir_abspath)
         # check and load export
         export_exists = os.path.isfile(full_export_path)
-        print(full_export_path, export_exists)
         if export_exists:
             load_cache(path_to_cache=full_export_path)
 
@@ -313,7 +312,6 @@ def hash_code_by_entrypoint(monkeypatch):
         ignored = list(self._hash_ignored_attributes)
         ignored.append('version')
         self._hash_ignored_attributes = tuple(ignored)
-        print(self._hash_ignored_attributes)
         objects = [
             #import_module(self.__module__.split('.', 1)[0]).__version__,
             {
