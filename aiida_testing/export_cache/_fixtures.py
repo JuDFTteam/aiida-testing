@@ -310,6 +310,7 @@ def hash_code_by_entrypoint(monkeypatch):
         ignored = list(self._hash_ignored_attributes)
         ignored.append('version')
         self._hash_ignored_attributes = tuple(ignored)
+        print(self._hash_ignored_attributes)
         objects = [
             #import_module(self.__module__.split('.', 1)[0]).__version__,
             {
