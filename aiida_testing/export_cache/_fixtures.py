@@ -335,11 +335,14 @@ def hash_code_by_entrypoint(monkeypatch):
     except AttributeError:
         from aiida.orm.nodes.caching import NodeCaching
         from aiida.orm.nodes.process.calculation.calcjob import CalcJobNodeCaching
-        class CodeNodeCaching(NodeCaching):
+        class MockCodeNodeCaching(NodeCaching):
             def _get_objects_to_hash(self):
                 return mock_objects_to_hash_code(self)
-        monkeypatch.setattr(CalcJobNodeCaching, "_get_objects_to_hash", mock_objects_to_hash_calcjob)
-        monkeypatch.setattr(Code, "_CLS_NODE_CACHING", CodeNodeCaching)
+        class MockCalcjobNodeCaching(CalcJobNodeCaching):
+            def _get_objects_to_hash(self):
+                return mock_objects_to_hash_calcjob(self)
+        monkeypatch.setattr(CalcJobNode, "_CLS_NODE_CACHING", MockCalcjobNodeCaching)
+        monkeypatch.setattr(Code, "_CLS_NODE_CACHING", MockCodeNodeCaching)
     # for all other data, since they include the version
 
     def mock_objects_to_hash(self):
