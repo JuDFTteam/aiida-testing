@@ -328,7 +328,7 @@ def hash_code_by_entrypoint(monkeypatch):
         class CodeNodeCaching(NodeCaching):
             def _get_objects_to_hash(self):
                 return mock_objects_to_hash_code(self)
-        monkeypatch.setattr(CalcJobNodeCaching, "_get_objects_to_hash", mock_objects_to_hash_code)
+        monkeypatch.setattr(CalcJobNodeCaching, "_get_objects_to_hash", mock_objects_to_hash_calcjob)
         monkeypatch.setattr(Code, "_CLS_NODE_CACHING", CodeNodeCaching)
     # for all other data, since they include the version
 
