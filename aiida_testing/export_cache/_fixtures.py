@@ -311,6 +311,7 @@ def hash_code_by_entrypoint(monkeypatch):
         #from importlib import import_module
         ignored = list(self._hash_ignored_attributes)
         ignored.append('version')
+        ignored.append('environment_variables_double_quotes')
         self._hash_ignored_attributes = tuple(ignored)
         objects = [
             #import_module(self.__module__.split('.', 1)[0]).__version__,
