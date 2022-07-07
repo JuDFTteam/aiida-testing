@@ -318,9 +318,17 @@ def hash_code_by_entrypoint(monkeypatch):
         #pprint('{} objects to hash calcjob: {}'.format(type(self), objects))
         return objects
 
-    monkeypatch.setattr(Code, "_get_objects_to_hash", mock_objects_to_hash_code)
-    monkeypatch.setattr(CalcJobNode, "_get_objects_to_hash", mock_objects_to_hash_calcjob)
-
+    try:
+        monkeypatch.setattr(Code, "_get_objects_to_hash", mock_objects_to_hash_code)
+        monkeypatch.setattr(CalcJobNode, "_get_objects_to_hash", mock_objects_to_hash_calcjob)
+    except AttributeError:
+        from aiida.orm.nodes.caching import NodeCaching
+        from aiida.orm.nodes.process.calculation import CalcJobNodeCaching
+        class CodeNodeCaching(NodeCaching):
+            def _get_objects_to_hash(self):
+                return mock_objects_to_hash_code(self)
+        monkeypatch.setattr(CalcJobNodeCaching, "_get_objects_to_hash", mock_objects_to_hash_code)
+        monkeypatch.setattr(Code, "_CLS_NODE_CACHING", CodeNodeCaching)
     # for all other data, since they include the version
 
     def mock_objects_to_hash(self):
@@ -347,7 +355,14 @@ def hash_code_by_entrypoint(monkeypatch):
     # since we still want versioning for plugin datatypes and calcs we only monkeypatch aiida datatypes
     classes_to_patch = [Dict, SinglefileData, List, FolderData, RemoteData]
     for classe in classes_to_patch:
-        monkeypatch.setattr(classe, "_get_objects_to_hash", mock_objects_to_hash)
+        try:
+            monkeypatch.setattr(classe, "_get_objects_to_hash", mock_objects_to_hash)
+        except AttributeError:
+            from aiida.orm.nodes.caching import NodeCaching
+            class MockNodeCaching(NodeCaching):
+                def _get_objects_to_hash(self):
+                    return mock_objects_to_hash(self)
+            monkeypatch.setattr(classe, "_CLS_NODE_CACHING", MockNodeCaching)
 
     #BaseData, List, Array, ...
 
